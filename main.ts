@@ -1,0 +1,252 @@
+const kv = await Deno.openKv();
+
+type Schedule = {
+  id: number;
+  datetime: string;
+  content: string;
+  isDone: boolean;
+  createdAt: string;
+};
+
+type Todo = {
+  id: number;
+  content: string;
+  isDone: boolean;
+  createdAt: string;
+};
+
+const htmlPath = new URL("./index.html", import.meta.url);
+
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
+function badRequest(message: string): Response {
+  return json({ status: "error", message }, 400);
+}
+
+async function nextId(kind: "schedule" | "todo"): Promise<number> {
+  const key = ["meta", `${kind}_id`];
+  const result = await kv.atomic()
+    .sum(key, 1n)
+    .commit();
+
+  if (!result.ok) {
+    throw new Error(`Failed to allocate ${kind} id`);
+  }
+
+  const value = result.versionstamp
+    ? await kv.get<bigint>(key)
+    : { value: 1n };
+
+  return Number(value.value ?? 1n);
+}
+
+async function listSchedules(): Promise<Schedule[]> {
+  const items: Schedule[] = [];
+  for await (const entry of kv.list<Schedule>({ prefix: ["schedules"] })) {
+    items.push(entry.value);
+  }
+  return items.sort((a, b) => {
+    if (a.isDone !== b.isDone) return Number(a.isDone) - Number(b.isDone);
+    return new Date(a.datetime).getTime() - new Date(b.datetime).getTime();
+  });
+}
+
+async function listTodos(): Promise<Todo[]> {
+  const items: Todo[] = [];
+  for await (const entry of kv.list<Todo>({ prefix: ["todos"] })) {
+    items.push(entry.value);
+  }
+  return items.sort((a, b) => {
+    if (a.isDone !== b.isDone) return Number(a.isDone) - Number(b.isDone);
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+}
+
+async function readJson<T>(request: Request): Promise<T | null> {
+  try {
+    return await request.json() as T;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeDateTime(value: string): string {
+  return value.trim();
+}
+
+async function handleSchedules(request: Request): Promise<Response> {
+  if (request.method === "GET") {
+    return json(await listSchedules());
+  }
+
+  if (request.method === "POST") {
+    const body = await readJson<{ datetime?: string; content?: string }>(request);
+    if (!body?.datetime || !body?.content?.trim()) {
+      return badRequest("日期时间和内容不能为空");
+    }
+
+    const schedule: Schedule = {
+      id: await nextId("schedule"),
+      datetime: normalizeDateTime(body.datetime),
+      content: body.content.trim(),
+      isDone: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    await kv.set(["schedules", schedule.id], schedule);
+    return json({ status: "success", item: schedule });
+  }
+
+  return new Response("Method Not Allowed", { status: 405 });
+}
+
+async function handleScheduleDetail(request: Request, id: number): Promise<Response> {
+  const key = ["schedules", id] as const;
+  const existing = await kv.get<Schedule>(key);
+  if (!existing.value) {
+    return json({ status: "error", message: "日程不存在" }, 404);
+  }
+
+  if (request.method === "PUT") {
+    const body = await readJson<{
+      datetime?: string;
+      content?: string;
+      isDone?: boolean;
+    }>(request);
+
+    if (!body) return badRequest("请求数据无效");
+
+    if ("isDone" in body && body.datetime === undefined && body.content === undefined) {
+      const updated: Schedule = { ...existing.value, isDone: Boolean(body.isDone) };
+      await kv.set(key, updated);
+      return json({ status: "success", item: updated });
+    }
+
+    if (!body.datetime || !body.content?.trim()) {
+      return badRequest("日期时间和内容不能为空");
+    }
+
+    const updated: Schedule = {
+      ...existing.value,
+      datetime: normalizeDateTime(body.datetime),
+      content: body.content.trim(),
+    };
+
+    await kv.set(key, updated);
+    return json({ status: "success", item: updated });
+  }
+
+  if (request.method === "DELETE") {
+    await kv.delete(key);
+    return json({ status: "success" });
+  }
+
+  return new Response("Method Not Allowed", { status: 405 });
+}
+
+async function handleTodos(request: Request): Promise<Response> {
+  if (request.method === "GET") {
+    return json(await listTodos());
+  }
+
+  if (request.method === "POST") {
+    const body = await readJson<{ content?: string }>(request);
+    if (!body?.content?.trim()) {
+      return badRequest("待办内容不能为空");
+    }
+
+    const todo: Todo = {
+      id: await nextId("todo"),
+      content: body.content.trim(),
+      isDone: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    await kv.set(["todos", todo.id], todo);
+    return json({ status: "success", item: todo });
+  }
+
+  return new Response("Method Not Allowed", { status: 405 });
+}
+
+async function handleTodoDetail(request: Request, id: number): Promise<Response> {
+  const key = ["todos", id] as const;
+  const existing = await kv.get<Todo>(key);
+  if (!existing.value) {
+    return json({ status: "error", message: "待办不存在" }, 404);
+  }
+
+  if (request.method === "PUT") {
+    const body = await readJson<{ content?: string; isDone?: boolean }>(request);
+    if (!body) return badRequest("请求数据无效");
+
+    const updated: Todo = {
+      ...existing.value,
+      content: body.content?.trim() || existing.value.content,
+      isDone: typeof body.isDone === "boolean" ? body.isDone : existing.value.isDone,
+    };
+
+    await kv.set(key, updated);
+    return json({ status: "success", item: updated });
+  }
+
+  if (request.method === "DELETE") {
+    await kv.delete(key);
+    return json({ status: "success" });
+  }
+
+  return new Response("Method Not Allowed", { status: 405 });
+}
+
+async function serveHtml(): Promise<Response> {
+  const html = await Deno.readTextFile(htmlPath);
+  return new Response(html, {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
+function notFound(): Response {
+  return new Response("Not Found", { status: 404 });
+}
+
+Deno.serve(async (request) => {
+  const url = new URL(request.url);
+
+  if (url.pathname === "/") {
+    return await serveHtml();
+  }
+
+  if (url.pathname === "/api/schedules") {
+    return await handleSchedules(request);
+  }
+
+  if (url.pathname.startsWith("/api/schedules/")) {
+    const id = Number(url.pathname.split("/").pop());
+    if (!Number.isFinite(id)) return notFound();
+    return await handleScheduleDetail(request, id);
+  }
+
+  if (url.pathname === "/api/todos") {
+    return await handleTodos(request);
+  }
+
+  if (url.pathname.startsWith("/api/todos/")) {
+    const id = Number(url.pathname.split("/").pop());
+    if (!Number.isFinite(id)) return notFound();
+    return await handleTodoDetail(request, id);
+  }
+
+  return notFound();
+});
+

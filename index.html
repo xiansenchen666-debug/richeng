@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deno 日程与待办</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f5f7fb;
+            --panel: rgba(255, 255, 255, 0.92);
+            --line: #e5e7eb;
+            --text: #1f2937;
+            --sub: #64748b;
+            --brand: #4f46e5;
+            --brand-soft: #eef2ff;
+            --ok: #059669;
+            --ok-soft: #ecfdf5;
+            --danger: #dc2626;
+            --danger-soft: #fef2f2;
+            --shadow: 0 18px 50px -24px rgba(15, 23, 42, 0.2);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at top left, #eef2ff 0%, transparent 28%),
+                radial-gradient(circle at top right, #ecfeff 0%, transparent 22%),
+                linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%);
+            color: var(--text);
+        }
+
+        .app {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 28px 20px 40px;
+        }
+
+        .hero {
+            margin-bottom: 20px;
+        }
+
+        .hero h1 {
+            margin: 0 0 8px;
+            font-size: 34px;
+        }
+
+        .hero p {
+            margin: 0;
+            color: var(--sub);
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 360px minmax(0, 1fr) 340px;
+            gap: 20px;
+            align-items: start;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid rgba(255, 255, 255, 0.85);
+            border-radius: 24px;
+            box-shadow: var(--shadow);
+            padding: 20px;
+            backdrop-filter: blur(16px);
+        }
+
+        .panel h2 {
+            margin: 0 0 16px;
+            font-size: 20px;
+        }
+
+        .panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .badge {
+            min-width: 32px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: var(--brand-soft);
+            color: var(--brand);
+            text-align: center;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .badge.ok {
+            background: var(--ok-soft);
+            color: var(--ok);
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        label {
+            font-size: 13px;
+            color: var(--sub);
+            font-weight: 700;
+        }
+
+        input[type="datetime-local"],
+        input[type="text"],
+        textarea {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 12px 14px;
+            font-size: 14px;
+            background: rgba(255, 255, 255, 0.88);
+            color: var(--text);
+        }
+
+        textarea {
+            min-height: 110px;
+            resize: vertical;
+        }
+
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #818cf8;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 16px;
+            padding: 12px 16px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            color: #fff;
+            background: linear-gradient(135deg, #4f46e5, #6366f1);
+        }
+
+        .btn-soft {
+            color: var(--danger);
+            background: var(--danger-soft);
+        }
+
+        .btn-light {
+            color: var(--sub);
+            background: #f8fafc;
+        }
+
+        .schedule-list,
+        .todo-list,
+        .done-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .schedule-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 14px;
+        }
+
+        .schedule-card {
+            border: 1px solid #dbeafe;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 16px;
+        }
+
+        .schedule-card.past {
+            border-color: #e2e8f0;
+            background: rgba(248, 250, 252, 0.95);
+        }
+
+        .schedule-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .schedule-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .schedule-top {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .weekday {
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 13px;
+            font-weight: 800;
+            background: var(--brand-soft);
+            color: var(--brand);
+        }
+
+        .time {
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--brand);
+        }
+
+        .content-editor {
+            min-height: 92px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .icon-btn {
+            width: 36px;
+            height: 36px;
+            border: 0;
+            border-radius: 12px;
+            background: #f8fafc;
+            color: #64748b;
+            cursor: pointer;
+            font-size: 15px;
+        }
+
+        .icon-btn:hover {
+            background: #eef2ff;
+            color: var(--brand);
+        }
+
+        .todo-item,
+        .done-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px;
+            border-radius: 18px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.92);
+        }
+
+        .done-item {
+            display: grid;
+            grid-template-columns: auto auto 1fr auto;
+            gap: 12px;
+            background: rgba(236, 253, 245, 0.9);
+            border-color: #bbf7d0;
+        }
+
+        .done-item .done-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #065f46;
+            text-decoration: line-through;
+        }
+
+        .muted {
+            color: var(--sub);
+        }
+
+        .empty {
+            padding: 28px 12px;
+            border: 1px dashed var(--line);
+            border-radius: 18px;
+            color: var(--sub);
+            text-align: center;
+            background: rgba(255, 255, 255, 0.55);
+        }
+
+        dialog {
+            border: 0;
+            border-radius: 22px;
+            width: min(520px, calc(100vw - 24px));
+            padding: 0;
+            box-shadow: 0 25px 60px -25px rgba(15, 23, 42, 0.25);
+        }
+
+        dialog::backdrop {
+            background: rgba(15, 23, 42, 0.18);
+        }
+
+        .dialog-body {
+            padding: 20px;
+        }
+
+        .dialog-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        @media (max-width: 1180px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="hero">
+            <h1>Deno 日程与待办</h1>
+            <p>单文件后端 + 单页面前端，数据直接保存在 Deno KV。</p>
+        </div>
+
+        <div class="layout">
+            <section class="panel">
+                <h2>新建日程</h2>
+                <form id="scheduleForm">
+                    <div class="field">
+                        <label for="scheduleDatetime">日期时间</label>
+                        <input id="scheduleDatetime" type="datetime-local" required>
+                    </div>
+                    <div class="field">
+                        <label for="scheduleContent">内容</label>
+                        <textarea id="scheduleContent" placeholder="输入你的安排..." required></textarea>
+                    </div>
+                    <button class="btn btn-primary" type="submit">保存日程</button>
+                </form>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>日程安排</h2>
+                    <span class="badge" id="scheduleBadge">0</span>
+                </div>
+                <div class="schedule-list">
+                    <div id="activeSchedules" class="schedule-grid"></div>
+                    <div>
+                        <div class="panel-head" style="margin-top: 8px;">
+                            <h2 style="font-size: 18px; margin: 0;">已完成安排</h2>
+                            <span class="badge ok" id="doneBadge">0</span>
+                        </div>
+                        <div id="doneSchedules" class="done-list"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>待办事项</h2>
+                    <span class="badge ok" id="todoBadge">0</span>
+                </div>
+                <form id="todoForm" style="display:flex; gap:10px; margin-bottom:14px;">
+                    <input id="todoContent" type="text" placeholder="输入待办..." required>
+                    <button class="btn btn-primary" type="submit">添加</button>
+                </form>
+                <div id="todoList" class="todo-list"></div>
+            </section>
+        </div>
+    </div>
+
+    <dialog id="scheduleDialog">
+        <div class="dialog-body">
+            <h3 style="margin:0 0 14px;">修改日程时间</h3>
+            <input type="hidden" id="editScheduleId">
+            <div class="field">
+                <label for="editScheduleDatetime">日期时间</label>
+                <input id="editScheduleDatetime" type="datetime-local">
+            </div>
+            <div class="dialog-actions">
+                <button class="btn btn-light" type="button" onclick="scheduleDialog.close()">取消</button>
+                <button class="btn btn-primary" id="saveScheduleDateBtn" type="button">保存时间</button>
+            </div>
+        </div>
+    </dialog>
+
+    <dialog id="confirmDialog">
+        <div class="dialog-body">
+            <h3 style="margin:0 0 8px;">确认删除</h3>
+            <div class="muted" id="confirmText">删除后不可恢复。</div>
+            <div class="dialog-actions">
+                <button class="btn btn-light" type="button" onclick="confirmDialog.close()">取消</button>
+                <button class="btn btn-soft" id="confirmDeleteBtn" type="button">确认删除</button>
+            </div>
+        </div>
+    </dialog>
+
+    <script>
+        const weekdayNames = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+        const scheduleForm = document.getElementById("scheduleForm");
+        const scheduleDatetime = document.getElementById("scheduleDatetime");
+        const scheduleContent = document.getElementById("scheduleContent");
+        const activeSchedules = document.getElementById("activeSchedules");
+        const doneSchedules = document.getElementById("doneSchedules");
+        const scheduleBadge = document.getElementById("scheduleBadge");
+        const doneBadge = document.getElementById("doneBadge");
+        const todoForm = document.getElementById("todoForm");
+        const todoContent = document.getElementById("todoContent");
+        const todoList = document.getElementById("todoList");
+        const todoBadge = document.getElementById("todoBadge");
+        const scheduleDialog = document.getElementById("scheduleDialog");
+        const editScheduleId = document.getElementById("editScheduleId");
+        const editScheduleDatetime = document.getElementById("editScheduleDatetime");
+        const saveScheduleDateBtn = document.getElementById("saveScheduleDateBtn");
+        const confirmDialog = document.getElementById("confirmDialog");
+        const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
+        let confirmAction = null;
+
+        scheduleDatetime.value = new Date().toISOString().slice(0, 16);
+
+        function escapeHtml(text) {
+            return String(text)
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll("\"", "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        async function api(path, options = {}) {
+            const response = await fetch(path, {
+                headers: { "Content-Type": "application/json" },
+                ...options,
+            });
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.message || "请求失败");
+            }
+            return response.json();
+        }
+
+        function formatDateTime(value) {
+            const date = new Date(value);
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, "0");
+            const d = String(date.getDate()).padStart(2, "0");
+            const hh = String(date.getHours()).padStart(2, "0");
+            const mm = String(date.getMinutes()).padStart(2, "0");
+            return {
+                date: `${y}-${m}-${d}`,
+                time: `${hh}:${mm}`,
+                weekday: weekdayNames[date.getDay()],
+                past: date.getTime() < Date.now(),
+            };
+        }
+
+        function emptyState(text) {
+            return `<div class="empty">${text}</div>`;
+        }
+
+        async function loadSchedules() {
+            const items = await api("/api/schedules");
+            const active = items.filter((item) => !item.isDone);
+            const done = items.filter((item) => item.isDone);
+            scheduleBadge.textContent = active.length;
+            doneBadge.textContent = done.length;
+
+            activeSchedules.innerHTML = active.length ? "" : emptyState("暂无未完成日程");
+            doneSchedules.innerHTML = done.length ? "" : emptyState("暂无已完成日程");
+
+            active.forEach((item) => {
+                const info = formatDateTime(item.datetime);
+                const card = document.createElement("div");
+                card.className = `schedule-card ${info.past ? "past" : ""}`;
+                card.innerHTML = `
+                    <div class="schedule-row">
+                        <input type="checkbox" onchange="toggleSchedule(${item.id}, this.checked)">
+                        <div class="schedule-main">
+                            <div class="schedule-top">
+                                <span><strong>${info.date}</strong></span>
+                                <span class="weekday">${info.weekday}</span>
+                                <span class="time">${info.time}</span>
+                            </div>
+                            <textarea class="content-editor" data-id="${item.id}" data-datetime="${item.datetime}" data-original="${encodeURIComponent(item.content)}">${escapeHtml(item.content)}</textarea>
+                        </div>
+                        <div class="actions">
+                            <button class="icon-btn" onclick="openScheduleDialog(${item.id}, '${item.datetime}')">时</button>
+                            <button class="icon-btn" onclick="askDeleteSchedule(${item.id})">删</button>
+                        </div>
+                    </div>
+                `;
+
+                const editor = card.querySelector("textarea");
+                editor.addEventListener("blur", async (event) => {
+                    const target = event.target;
+                    const original = decodeURIComponent(target.dataset.original || "");
+                    if (target.value === original) return;
+                    await updateSchedule(item.id, {
+                        datetime: target.dataset.datetime,
+                        content: target.value,
+                    });
+                });
+
+                activeSchedules.appendChild(card);
+            });
+
+            done.forEach((item) => {
+                const info = formatDateTime(item.datetime);
+                const row = document.createElement("div");
+                row.className = "done-item";
+                row.innerHTML = `
+                    <input type="checkbox" checked onchange="toggleSchedule(${item.id}, this.checked)">
+                    <span><strong>${info.time}</strong></span>
+                    <span class="done-text">${escapeHtml(item.content)}</span>
+                    <button class="icon-btn" onclick="askDeleteSchedule(${item.id})">删</button>
+                `;
+                doneSchedules.appendChild(row);
+            });
+        }
+
+        async function loadTodos() {
+            const items = await api("/api/todos");
+            const pending = items.filter((item) => !item.isDone);
+            todoBadge.textContent = pending.length;
+            todoList.innerHTML = items.length ? "" : emptyState("暂无待办");
+
+            items.forEach((item) => {
+                const row = document.createElement("div");
+                row.className = "todo-item";
+                row.innerHTML = `
+                    <input type="checkbox" ${item.isDone ? "checked" : ""} onchange="toggleTodo(${item.id}, this.checked)">
+                    <div style="flex:1; ${item.isDone ? "text-decoration:line-through;color:#94a3b8;" : ""}">${escapeHtml(item.content)}</div>
+                    <button class="icon-btn" onclick="askDeleteTodo(${item.id})">删</button>
+                `;
+                todoList.appendChild(row);
+            });
+        }
+
+        async function refreshAll() {
+            await Promise.all([loadSchedules(), loadTodos()]);
+        }
+
+        async function updateSchedule(id, payload) {
+            await api(`/api/schedules/${id}`, {
+                method: "PUT",
+                body: JSON.stringify(payload),
+            });
+            await loadSchedules();
+        }
+
+        scheduleForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            await api("/api/schedules", {
+                method: "POST",
+                body: JSON.stringify({
+                    datetime: scheduleDatetime.value,
+                    content: scheduleContent.value,
+                }),
+            });
+            scheduleContent.value = "";
+            scheduleDatetime.value = new Date().toISOString().slice(0, 16);
+            await loadSchedules();
+        });
+
+        todoForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            await api("/api/todos", {
+                method: "POST",
+                body: JSON.stringify({ content: todoContent.value }),
+            });
+            todoContent.value = "";
+            await loadTodos();
+        });
+
+        window.toggleSchedule = async (id, checked) => {
+            await api(`/api/schedules/${id}`, {
+                method: "PUT",
+                body: JSON.stringify({ isDone: checked }),
+            });
+            await loadSchedules();
+        };
+
+        window.toggleTodo = async (id, checked) => {
+            await api(`/api/todos/${id}`, {
+                method: "PUT",
+                body: JSON.stringify({ isDone: checked }),
+            });
+            await loadTodos();
+        };
+
+        window.openScheduleDialog = (id, datetime) => {
+            editScheduleId.value = id;
+            editScheduleDatetime.value = datetime;
+            scheduleDialog.showModal();
+        };
+
+        saveScheduleDateBtn.addEventListener("click", async () => {
+            const id = Number(editScheduleId.value);
+            const editor = document.querySelector(`textarea[data-id="${id}"]`);
+            await updateSchedule(id, {
+                datetime: editScheduleDatetime.value,
+                content: editor ? editor.value : "",
+            });
+            scheduleDialog.close();
+        });
+
+        function askDelete(message, callback) {
+            document.getElementById("confirmText").textContent = message;
+            confirmAction = callback;
+            confirmDialog.showModal();
+        }
+
+        confirmDeleteBtn.addEventListener("click", async () => {
+            if (confirmAction) await confirmAction();
+            confirmDialog.close();
+            confirmAction = null;
+        });
+
+        window.askDeleteSchedule = (id) => {
+            askDelete("删除这个日程后不可恢复。", async () => {
+                await api(`/api/schedules/${id}`, { method: "DELETE" });
+                await loadSchedules();
+            });
+        };
+
+        window.askDeleteTodo = (id) => {
+            askDelete("删除这个待办后不可恢复。", async () => {
+                await api(`/api/todos/${id}`, { method: "DELETE" });
+                await loadTodos();
+            });
+        };
+
+        refreshAll().catch((error) => {
+            console.error(error);
+            alert(error.message || "加载失败");
+        });
+    </script>
+</body>
+</html>
