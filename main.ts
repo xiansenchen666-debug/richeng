@@ -44,15 +44,15 @@ function badRequest(message: string): Response {
 }
 
 async function initKv(): Promise<Deno.Kv | null> {
-  if (typeof Deno.openKv !== "function") {
-    return null;
-  }
-
+  // Deno Deploy 某些环境下 Deno.openKv 可能存在但调用报错
   try {
-    return await Deno.openKv();
-  } catch {
-    return null;
+    if (typeof Deno.openKv === "function") {
+      return await Deno.openKv();
+    }
+  } catch (error) {
+    console.warn("Deno.openKv is not available or failed to initialize:", error);
   }
+  return null;
 }
 
 async function nextId(kind: "schedule" | "todo"): Promise<number> {
