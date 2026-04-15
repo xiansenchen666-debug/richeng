@@ -1,5 +1,3 @@
-const kv = await Deno.openKv();
-
 type Schedule = {
   id: number;
   datetime: string;
@@ -17,6 +15,20 @@ type Todo = {
 
 const htmlPath = new URL("./index.html", import.meta.url);
 
+type MemoryStore = {
+  schedules: Map<number, Schedule>;
+  todos: Map<number, Todo>;
+  meta: Map<string, number>;
+};
+
+const memoryStore: MemoryStore = {
+  schedules: new Map(),
+  todos: new Map(),
+  meta: new Map(),
+};
+
+const kv = await initKv();
+
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -31,7 +43,26 @@ function badRequest(message: string): Response {
   return json({ status: "error", message }, 400);
 }
 
+async function initKv(): Promise<Deno.Kv | null> {
+  if (typeof Deno.openKv !== "function") {
+    return null;
+  }
+
+  try {
+    return await Deno.openKv();
+  } catch {
+    return null;
+  }
+}
+
 async function nextId(kind: "schedule" | "todo"): Promise<number> {
+  if (!kv) {
+    const key = `${kind}_id`;
+    const value = (memoryStore.meta.get(key) ?? 0) + 1;
+    memoryStore.meta.set(key, value);
+    return value;
+  }
+
   const key = ["meta", `${kind}_id`];
   const result = await kv.atomic()
     .sum(key, 1n)
@@ -49,6 +80,13 @@ async function nextId(kind: "schedule" | "todo"): Promise<number> {
 }
 
 async function listSchedules(): Promise<Schedule[]> {
+  if (!kv) {
+    return [...memoryStore.schedules.values()].sort((a, b) => {
+      if (a.isDone !== b.isDone) return Number(a.isDone) - Number(b.isDone);
+      return new Date(a.datetime).getTime() - new Date(b.datetime).getTime();
+    });
+  }
+
   const items: Schedule[] = [];
   for await (const entry of kv.list<Schedule>({ prefix: ["schedules"] })) {
     items.push(entry.value);
@@ -60,6 +98,13 @@ async function listSchedules(): Promise<Schedule[]> {
 }
 
 async function listTodos(): Promise<Todo[]> {
+  if (!kv) {
+    return [...memoryStore.todos.values()].sort((a, b) => {
+      if (a.isDone !== b.isDone) return Number(a.isDone) - Number(b.isDone);
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }
+
   const items: Todo[] = [];
   for await (const entry of kv.list<Todo>({ prefix: ["todos"] })) {
     items.push(entry.value);
@@ -82,6 +127,54 @@ function normalizeDateTime(value: string): string {
   return value.trim();
 }
 
+async function getSchedule(id: number): Promise<Schedule | null> {
+  if (!kv) {
+    return memoryStore.schedules.get(id) ?? null;
+  }
+  const result = await kv.get<Schedule>(["schedules", id]);
+  return result.value ?? null;
+}
+
+async function setSchedule(schedule: Schedule): Promise<void> {
+  if (!kv) {
+    memoryStore.schedules.set(schedule.id, schedule);
+    return;
+  }
+  await kv.set(["schedules", schedule.id], schedule);
+}
+
+async function deleteScheduleById(id: number): Promise<void> {
+  if (!kv) {
+    memoryStore.schedules.delete(id);
+    return;
+  }
+  await kv.delete(["schedules", id]);
+}
+
+async function getTodo(id: number): Promise<Todo | null> {
+  if (!kv) {
+    return memoryStore.todos.get(id) ?? null;
+  }
+  const result = await kv.get<Todo>(["todos", id]);
+  return result.value ?? null;
+}
+
+async function setTodo(todo: Todo): Promise<void> {
+  if (!kv) {
+    memoryStore.todos.set(todo.id, todo);
+    return;
+  }
+  await kv.set(["todos", todo.id], todo);
+}
+
+async function deleteTodoById(id: number): Promise<void> {
+  if (!kv) {
+    memoryStore.todos.delete(id);
+    return;
+  }
+  await kv.delete(["todos", id]);
+}
+
 async function handleSchedules(request: Request): Promise<Response> {
   if (request.method === "GET") {
     return json(await listSchedules());
@@ -101,7 +194,7 @@ async function handleSchedules(request: Request): Promise<Response> {
       createdAt: new Date().toISOString(),
     };
 
-    await kv.set(["schedules", schedule.id], schedule);
+    await setSchedule(schedule);
     return json({ status: "success", item: schedule });
   }
 
@@ -109,9 +202,8 @@ async function handleSchedules(request: Request): Promise<Response> {
 }
 
 async function handleScheduleDetail(request: Request, id: number): Promise<Response> {
-  const key = ["schedules", id] as const;
-  const existing = await kv.get<Schedule>(key);
-  if (!existing.value) {
+  const existing = await getSchedule(id);
+  if (!existing) {
     return json({ status: "error", message: "日程不存在" }, 404);
   }
 
@@ -125,8 +217,8 @@ async function handleScheduleDetail(request: Request, id: number): Promise<Respo
     if (!body) return badRequest("请求数据无效");
 
     if ("isDone" in body && body.datetime === undefined && body.content === undefined) {
-      const updated: Schedule = { ...existing.value, isDone: Boolean(body.isDone) };
-      await kv.set(key, updated);
+      const updated: Schedule = { ...existing, isDone: Boolean(body.isDone) };
+      await setSchedule(updated);
       return json({ status: "success", item: updated });
     }
 
@@ -135,17 +227,17 @@ async function handleScheduleDetail(request: Request, id: number): Promise<Respo
     }
 
     const updated: Schedule = {
-      ...existing.value,
+      ...existing,
       datetime: normalizeDateTime(body.datetime),
       content: body.content.trim(),
     };
 
-    await kv.set(key, updated);
+    await setSchedule(updated);
     return json({ status: "success", item: updated });
   }
 
   if (request.method === "DELETE") {
-    await kv.delete(key);
+    await deleteScheduleById(id);
     return json({ status: "success" });
   }
 
@@ -170,7 +262,7 @@ async function handleTodos(request: Request): Promise<Response> {
       createdAt: new Date().toISOString(),
     };
 
-    await kv.set(["todos", todo.id], todo);
+    await setTodo(todo);
     return json({ status: "success", item: todo });
   }
 
@@ -178,9 +270,8 @@ async function handleTodos(request: Request): Promise<Response> {
 }
 
 async function handleTodoDetail(request: Request, id: number): Promise<Response> {
-  const key = ["todos", id] as const;
-  const existing = await kv.get<Todo>(key);
-  if (!existing.value) {
+  const existing = await getTodo(id);
+  if (!existing) {
     return json({ status: "error", message: "待办不存在" }, 404);
   }
 
@@ -189,17 +280,17 @@ async function handleTodoDetail(request: Request, id: number): Promise<Response>
     if (!body) return badRequest("请求数据无效");
 
     const updated: Todo = {
-      ...existing.value,
-      content: body.content?.trim() || existing.value.content,
-      isDone: typeof body.isDone === "boolean" ? body.isDone : existing.value.isDone,
+      ...existing,
+      content: body.content?.trim() || existing.content,
+      isDone: typeof body.isDone === "boolean" ? body.isDone : existing.isDone,
     };
 
-    await kv.set(key, updated);
+    await setTodo(updated);
     return json({ status: "success", item: updated });
   }
 
   if (request.method === "DELETE") {
-    await kv.delete(key);
+    await deleteTodoById(id);
     return json({ status: "success" });
   }
 
@@ -249,4 +340,3 @@ Deno.serve(async (request) => {
 
   return notFound();
 });
-
