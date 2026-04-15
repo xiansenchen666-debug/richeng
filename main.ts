@@ -43,15 +43,26 @@ function badRequest(message: string): Response {
   return json({ status: "error", message }, 400);
 }
 
+function storageMode(): string {
+  return kv ? "DenoKV" : "Memory";
+}
+
+function logStorage(action: string, kind: "schedule" | "todo", payload: unknown): void {
+  console.log(`[${storageMode()}][${kind}][${action}] ${JSON.stringify(payload)}`);
+}
+
 async function initKv(): Promise<Deno.Kv | null> {
   // Deno Deploy 某些环境下 Deno.openKv 可能存在但调用报错
   try {
     if (typeof Deno.openKv === "function") {
-      return await Deno.openKv();
+      const instance = await Deno.openKv();
+      console.log("[DenoKV] KV 连接成功");
+      return instance;
     }
   } catch (error) {
     console.warn("Deno.openKv is not available or failed to initialize:", error);
   }
+  console.warn("[Memory] 当前未连接到 Deno KV，将使用内存存储");
   return null;
 }
 
@@ -195,6 +206,7 @@ async function handleSchedules(request: Request): Promise<Response> {
     };
 
     await setSchedule(schedule);
+    logStorage("create", "schedule", schedule);
     return json({ status: "success", item: schedule });
   }
 
@@ -219,6 +231,12 @@ async function handleScheduleStatus(request: Request, id: number): Promise<Respo
 
   const updated: Schedule = { ...existing, isDone };
   await setSchedule(updated);
+  logStorage("toggle", "schedule", {
+    id: updated.id,
+    datetime: updated.datetime,
+    content: updated.content,
+    isDone: updated.isDone,
+  });
   return json({ status: "success", item: updated });
 }
 
@@ -254,10 +272,12 @@ async function handleScheduleDetail(request: Request, id: number): Promise<Respo
     };
 
     await setSchedule(updated);
+    logStorage("update", "schedule", updated);
     return json({ status: "success", item: updated });
   }
 
   if (request.method === "DELETE") {
+    logStorage("delete", "schedule", existing);
     await deleteScheduleById(id);
     return json({ status: "success" });
   }
@@ -284,6 +304,7 @@ async function handleTodos(request: Request): Promise<Response> {
     };
 
     await setTodo(todo);
+    logStorage("create", "todo", todo);
     return json({ status: "success", item: todo });
   }
 
@@ -307,10 +328,12 @@ async function handleTodoDetail(request: Request, id: number): Promise<Response>
     };
 
     await setTodo(updated);
+    logStorage("update", "todo", updated);
     return json({ status: "success", item: updated });
   }
 
   if (request.method === "DELETE") {
+    logStorage("delete", "todo", existing);
     await deleteTodoById(id);
     return json({ status: "success" });
   }
