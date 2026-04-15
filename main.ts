@@ -43,6 +43,25 @@ function badRequest(message: string): Response {
   return json({ status: "error", message }, 400);
 }
 
+function toScheduleResponse(schedule: Schedule) {
+  return {
+    id: schedule.id,
+    datetime: schedule.datetime,
+    content: schedule.content,
+    is_done: schedule.isDone,
+    created_at: schedule.createdAt,
+  };
+}
+
+function toTodoResponse(todo: Todo) {
+  return {
+    id: todo.id,
+    content: todo.content,
+    is_done: todo.isDone,
+    created_at: todo.createdAt,
+  };
+}
+
 function storageMode(): string {
   return kv ? "DenoKV" : "Memory";
 }
@@ -188,7 +207,8 @@ async function deleteTodoById(id: number): Promise<void> {
 
 async function handleSchedules(request: Request): Promise<Response> {
   if (request.method === "GET") {
-    return json(await listSchedules());
+    const schedules = await listSchedules();
+    return json(schedules.map(toScheduleResponse));
   }
 
   if (request.method === "POST") {
@@ -207,7 +227,7 @@ async function handleSchedules(request: Request): Promise<Response> {
 
     await setSchedule(schedule);
     logStorage("create", "schedule", schedule);
-    return json({ status: "success", item: schedule });
+    return json({ status: "success", item: toScheduleResponse(schedule) });
   }
 
   return new Response("Method Not Allowed", { status: 405 });
@@ -237,7 +257,7 @@ async function handleScheduleStatus(request: Request, id: number): Promise<Respo
     content: updated.content,
     isDone: updated.isDone,
   });
-  return json({ status: "success", item: updated });
+  return json({ status: "success", item: toScheduleResponse(updated) });
 }
 
 async function handleScheduleDetail(request: Request, id: number): Promise<Response> {
@@ -250,15 +270,20 @@ async function handleScheduleDetail(request: Request, id: number): Promise<Respo
     const body = await readJson<{
       datetime?: string;
       content?: string;
+      is_done?: boolean;
       isDone?: boolean;
     }>(request);
 
     if (!body) return badRequest("请求数据无效");
 
-    if ("isDone" in body && body.datetime === undefined && body.content === undefined) {
-      const updated: Schedule = { ...existing, isDone: Boolean(body.isDone) };
+    if (("isDone" in body || "is_done" in body) && body.datetime === undefined && body.content === undefined) {
+      const updated: Schedule = {
+        ...existing,
+        isDone: typeof body.is_done === "boolean" ? body.is_done : Boolean(body.isDone),
+      };
       await setSchedule(updated);
-      return json({ status: "success", item: updated });
+      logStorage("toggle", "schedule", updated);
+      return json({ status: "success", item: toScheduleResponse(updated) });
     }
 
     if (!body.datetime || !body.content?.trim()) {
@@ -273,7 +298,7 @@ async function handleScheduleDetail(request: Request, id: number): Promise<Respo
 
     await setSchedule(updated);
     logStorage("update", "schedule", updated);
-    return json({ status: "success", item: updated });
+    return json({ status: "success", item: toScheduleResponse(updated) });
   }
 
   if (request.method === "DELETE") {
@@ -287,7 +312,8 @@ async function handleScheduleDetail(request: Request, id: number): Promise<Respo
 
 async function handleTodos(request: Request): Promise<Response> {
   if (request.method === "GET") {
-    return json(await listTodos());
+    const todos = await listTodos();
+    return json(todos.map(toTodoResponse));
   }
 
   if (request.method === "POST") {
@@ -305,7 +331,7 @@ async function handleTodos(request: Request): Promise<Response> {
 
     await setTodo(todo);
     logStorage("create", "todo", todo);
-    return json({ status: "success", item: todo });
+    return json({ status: "success", item: toTodoResponse(todo) });
   }
 
   return new Response("Method Not Allowed", { status: 405 });
@@ -318,18 +344,20 @@ async function handleTodoDetail(request: Request, id: number): Promise<Response>
   }
 
   if (request.method === "PUT") {
-    const body = await readJson<{ content?: string; isDone?: boolean }>(request);
+    const body = await readJson<{ content?: string; is_done?: boolean; isDone?: boolean }>(request);
     if (!body) return badRequest("请求数据无效");
 
     const updated: Todo = {
       ...existing,
       content: body.content?.trim() || existing.content,
-      isDone: typeof body.isDone === "boolean" ? body.isDone : existing.isDone,
+      isDone: typeof body.is_done === "boolean"
+        ? body.is_done
+        : (typeof body.isDone === "boolean" ? body.isDone : existing.isDone),
     };
 
     await setTodo(updated);
     logStorage("update", "todo", updated);
-    return json({ status: "success", item: updated });
+    return json({ status: "success", item: toTodoResponse(updated) });
   }
 
   if (request.method === "DELETE") {
