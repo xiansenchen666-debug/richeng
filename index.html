@@ -3,638 +3,730 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deno 日程与待办</title>
+    <title>高大上日程与待办管理</title>
+    <!-- Tailwind & FontAwesome -->
+    <link href="https://cdn.staticfile.net/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.staticfile.net/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Flatpickr -->
+    <link rel="stylesheet" href="https://cdn.staticfile.net/flatpickr/4.6.13/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.staticfile.net/flatpickr/4.6.13/themes/material_blue.css">
+    
     <style>
-        :root {
-            color-scheme: light;
-            --bg: #f5f7fb;
-            --panel: rgba(255, 255, 255, 0.92);
-            --line: #e5e7eb;
-            --text: #1f2937;
-            --sub: #64748b;
-            --brand: #4f46e5;
-            --brand-soft: #eef2ff;
-            --ok: #059669;
-            --ok-soft: #ecfdf5;
-            --danger: #dc2626;
-            --danger-soft: #fef2f2;
-            --shadow: 0 18px 50px -24px rgba(15, 23, 42, 0.2);
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
         body {
-            margin: 0;
-            font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
-            background:
-                radial-gradient(circle at top left, #eef2ff 0%, transparent 28%),
-                radial-gradient(circle at top right, #ecfeff 0%, transparent 22%),
-                linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%);
-            color: var(--text);
+            font-family: 'Inter', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: radial-gradient(circle at top right, #eef2ff 0%, #f8fafc 50%, #f0fdf4 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
         }
-
-        .app {
-            max-width: 1440px;
-            margin: 0 auto;
-            padding: 28px 20px 40px;
-        }
-
-        .hero {
-            margin-bottom: 20px;
-        }
-
-        .hero h1 {
-            margin: 0 0 8px;
-            font-size: 34px;
-        }
-
-        .hero p {
-            margin: 0;
-            color: var(--sub);
-        }
-
-        .layout {
-            display: grid;
-            grid-template-columns: 360px minmax(0, 1fr) 340px;
-            gap: 20px;
-            align-items: start;
-        }
-
-        .panel {
-            background: var(--panel);
-            border: 1px solid rgba(255, 255, 255, 0.85);
-            border-radius: 24px;
-            box-shadow: var(--shadow);
-            padding: 20px;
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
             backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 1);
         }
-
-        .panel h2 {
-            margin: 0 0 16px;
-            font-size: 20px;
+        .list-item {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
-
-        .panel-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 16px;
+        .list-item:hover {
+            transform: translateY(-4px) scale(1.01);
+            box-shadow: 0 12px 24px -10px rgba(0,0,0,0.08);
+            border-color: rgba(99, 102, 241, 0.3) !important;
         }
-
-        .badge {
-            min-width: 32px;
-            padding: 4px 10px;
-            border-radius: 999px;
-            background: var(--brand-soft);
-            color: var(--brand);
-            text-align: center;
-            font-size: 12px;
-            font-weight: 700;
-        }
-
-        .badge.ok {
-            background: var(--ok-soft);
-            color: var(--ok);
-        }
-
-        .field {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-bottom: 14px;
-        }
-
-        label {
-            font-size: 13px;
-            color: var(--sub);
-            font-weight: 700;
-        }
-
-        input[type="datetime-local"],
-        input[type="text"],
-        textarea {
-            width: 100%;
-            border: 1px solid var(--line);
-            border-radius: 16px;
-            padding: 12px 14px;
-            font-size: 14px;
-            background: rgba(255, 255, 255, 0.88);
-            color: var(--text);
-        }
-
-        textarea {
-            min-height: 110px;
-            resize: vertical;
-        }
-
-        input:focus,
-        textarea:focus {
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .todo-checkbox {
+            appearance: none;
+            width: 22px;
+            height: 22px;
+            border: 2px solid #cbd5e1;
+            border-radius: 6px;
             outline: none;
-            border-color: #818cf8;
-            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
-        }
-
-        .btn {
-            border: 0;
-            border-radius: 16px;
-            padding: 12px 16px;
-            font-size: 14px;
-            font-weight: 700;
             cursor: pointer;
+            position: relative;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
         }
-
-        .btn-primary {
-            color: #fff;
-            background: linear-gradient(135deg, #4f46e5, #6366f1);
+        .todo-checkbox:hover {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
         }
-
-        .btn-soft {
-            color: var(--danger);
-            background: var(--danger-soft);
+        .todo-checkbox:checked {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-color: transparent;
+            box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
         }
-
-        .btn-light {
-            color: var(--sub);
-            background: #f8fafc;
+        .todo-checkbox:checked::after {
+            content: '\f00c';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            color: white;
+            position: absolute;
+            font-size: 12px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
         }
-
-        .schedule-list,
-        .todo-list,
-        .done-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+        
+        /* 优化 Flatpickr inline 样式，使其完美融入面板 */
+        .flatpickr-calendar.inline {
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02) !important;
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 1rem;
+            margin: 0 auto;
+            width: 100%;
+            max-width: 315px;
+            background: rgba(255, 255, 255, 0.6);
         }
-
-        .schedule-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 14px;
+        .flatpickr-day.selected {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+            border-color: transparent !important;
+            box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
         }
-
-        .schedule-card {
-            border: 1px solid #dbeafe;
-            border-radius: 20px;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 16px;
+        
+        /* 网格卡片日程的文本限制 */
+        .schedule-card-text {
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            word-break: break-all;
+            line-height: 1.6;
         }
-
-        .schedule-card.past {
-            border-color: #e2e8f0;
+        /* 输入框高级质感 */
+        .premium-input {
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            transition: all 0.3s ease;
+        }
+        .premium-input:focus {
+            background: rgba(255, 255, 255, 0.9);
+            border-color: #818cf8;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        }
+        .floating-popover {
+            position: fixed;
+            z-index: 60;
+            width: min(420px, calc(100vw - 24px));
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid rgba(226, 232, 240, 0.9);
+            border-radius: 1.25rem;
+            box-shadow: 0 20px 50px -18px rgba(15, 23, 42, 0.25);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+        }
+        .popover-wide {
+            width: min(560px, calc(100vw - 24px));
+        }
+        .inline-note-editor {
+            display: block;
+            width: 100%;
+            min-height: 84px;
+            resize: vertical;
+            border: 1px solid transparent;
+            background: rgba(255, 255, 255, 0.55);
+            border-radius: 0.9rem;
+            padding: 0.75rem 0.9rem;
+            font-size: 0.92rem;
+            line-height: 1.7;
+            color: #334155;
+            transition: all 0.2s ease;
+        }
+        .inline-note-editor:hover {
+            border-color: rgba(148, 163, 184, 0.35);
+        }
+        .inline-note-editor:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.92);
+            border-color: #818cf8;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        }
+        #dateEditorPopover .flatpickr-calendar.inline {
+            width: 100%;
+            max-width: none;
+            margin: 0;
+            box-shadow: none !important;
+            border: 1px solid rgba(226, 232, 240, 0.9);
             background: rgba(248, 250, 252, 0.95);
         }
-
-        .schedule-row {
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-        }
-
-        .schedule-main {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .schedule-top {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 10px;
-        }
-
-        .weekday {
-            border-radius: 999px;
-            padding: 4px 10px;
-            font-size: 13px;
-            font-weight: 800;
-            background: var(--brand-soft);
-            color: var(--brand);
-        }
-
-        .time {
-            font-size: 15px;
-            font-weight: 800;
-            color: var(--brand);
-        }
-
-        .content-editor {
-            min-height: 92px;
-        }
-
-        .actions {
-            display: flex;
-            gap: 8px;
-        }
-
-        .icon-btn {
-            width: 36px;
-            height: 36px;
-            border: 0;
-            border-radius: 12px;
-            background: #f8fafc;
-            color: #64748b;
-            cursor: pointer;
-            font-size: 15px;
-        }
-
-        .icon-btn:hover {
-            background: #eef2ff;
-            color: var(--brand);
-        }
-
-        .todo-item,
-        .done-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 14px;
-            border-radius: 18px;
-            border: 1px solid var(--line);
-            background: rgba(255, 255, 255, 0.92);
-        }
-
-        .done-item {
+        .compact-schedule-row {
             display: grid;
             grid-template-columns: auto auto 1fr auto;
-            gap: 12px;
-            background: rgba(236, 253, 245, 0.9);
-            border-color: #bbf7d0;
+            align-items: center;
+            gap: 0.75rem;
         }
-
-        .done-item .done-text {
+        .compact-schedule-content {
+            min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            color: #065f46;
-            text-decoration: line-through;
-        }
-
-        .muted {
-            color: var(--sub);
-        }
-
-        .empty {
-            padding: 28px 12px;
-            border: 1px dashed var(--line);
-            border-radius: 18px;
-            color: var(--sub);
-            text-align: center;
-            background: rgba(255, 255, 255, 0.55);
-        }
-
-        dialog {
-            border: 0;
-            border-radius: 22px;
-            width: min(520px, calc(100vw - 24px));
-            padding: 0;
-            box-shadow: 0 25px 60px -25px rgba(15, 23, 42, 0.25);
-        }
-
-        dialog::backdrop {
-            background: rgba(15, 23, 42, 0.18);
-        }
-
-        .dialog-body {
-            padding: 20px;
-        }
-
-        .dialog-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            margin-top: 18px;
-        }
-
-        @media (max-width: 1180px) {
-            .layout {
-                grid-template-columns: 1fr;
-            }
         }
     </style>
 </head>
-<body>
-    <div class="app">
-        <div class="hero">
-            <h1>Deno 日程与待办</h1>
-            <p>单文件后端 + 单页面前端，数据直接保存在 Deno KV。</p>
+<body class="py-10 px-4 sm:px-6 lg:px-8 text-gray-800 selection:bg-indigo-100 selection:text-indigo-900">
+
+    <div class="w-full mx-auto" style="max-width: 1800px;">
+        <div class="text-center mb-10">
+            <h1 class="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 mb-3 drop-shadow-sm tracking-tight">
+                <i class="fa-solid fa-calendar-check mr-2 text-indigo-500 drop-shadow-md"></i>日程与待办工作台
+            </h1>
+            <p class="text-slate-500 text-sm sm:text-base font-medium tracking-wide">全局掌控，高效管理每一天</p>
         </div>
 
-        <div class="layout">
-            <section class="panel">
-                <h2>新建日程</h2>
-                <form id="scheduleForm">
-                    <div class="field">
-                        <label for="scheduleDatetime">日期时间</label>
-                        <input id="scheduleDatetime" type="datetime-local" required>
+        <!-- 核心三列全屏布局 -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+            
+            <!-- ====== 左侧列 (占 3 份宽)：直接展开的日历与日程录入 ====== -->
+            <div class="glass-panel rounded-3xl p-6 flex flex-col h-[750px] md:col-span-4 xl:col-span-3">
+                <h2 class="text-xl font-bold mb-5 flex items-center text-indigo-950 pb-3 border-b border-indigo-100/50">
+                    <i class="fa-solid fa-calendar-plus text-indigo-500 mr-2 text-xl drop-shadow-sm"></i>新建日程
+                </h2>
+                
+                <form id="scheduleForm" class="flex flex-col gap-5 h-full">
+                    <!-- 直接展开的日历组件 -->
+                    <div class="flex flex-col justify-center w-full bg-white/40 rounded-2xl p-2 border border-white/60 shadow-sm gap-2">
+                        <input type="text" id="datetimeInput" required
+                            class="w-full px-3 py-2 border border-transparent rounded-lg text-sm text-indigo-800 bg-transparent text-center font-medium outline-none">
                     </div>
-                    <div class="field">
-                        <label for="scheduleContent">内容</label>
-                        <textarea id="scheduleContent" placeholder="输入你的安排..." required></textarea>
+                    
+                    <div class="flex-1 flex flex-col gap-2">
+                        <label class="text-sm font-semibold text-slate-600 ml-1">日程内容</label>
+                        <textarea id="scheduleContentInput" required placeholder="请填写具体安排..."
+                            class="flex-1 w-full px-4 py-3 premium-input rounded-2xl text-sm resize-none outline-none text-slate-700"></textarea>
                     </div>
-                    <button class="btn btn-primary" type="submit">保存日程</button>
+                    
+                    <button type="submit" 
+                        class="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold rounded-2xl shadow-[0_8px_20px_-6px_rgba(99,102,241,0.6)] hover:shadow-[0_12px_25px_-6px_rgba(99,102,241,0.7)] transform hover:-translate-y-0.5 transition-all duration-300 flex justify-center items-center gap-2">
+                        <i class="fa-solid fa-paper-plane"></i>保存日程
+                    </button>
                 </form>
-            </section>
+            </div>
 
-            <section class="panel">
-                <div class="panel-head">
-                    <h2>日程安排</h2>
-                    <span class="badge" id="scheduleBadge">0</span>
+            <!-- ====== 中间列 (占 6 份宽)：网格卡片式日程展示 ====== -->
+            <div class="glass-panel rounded-3xl p-6 flex flex-col h-[750px] md:col-span-8 xl:col-span-6">
+                <div class="flex items-center justify-between border-b border-indigo-100/50 pb-3 mb-5">
+                    <h2 class="text-xl font-bold flex items-center text-indigo-950">
+                        <i class="fa-regular fa-clock text-indigo-500 mr-2 text-xl drop-shadow-sm"></i>日程安排总览
+                    </h2>
+                    <span id="scheduleBadge" class="bg-indigo-100/80 border border-indigo-200 text-indigo-800 text-xs font-bold px-3 py-1 rounded-full shadow-sm">0</span>
                 </div>
-                <div class="schedule-list">
-                    <div id="activeSchedules" class="schedule-grid"></div>
-                    <div>
-                        <div class="panel-head" style="margin-top: 8px;">
-                            <h2 style="font-size: 18px; margin: 0;">已完成安排</h2>
-                            <span class="badge ok" id="doneBadge">0</span>
-                        </div>
-                        <div id="doneSchedules" class="done-list"></div>
+                
+                <!-- 充分利用空间的网格布局 Grid (每排2~3个卡片) -->
+                <div id="scheduleList" class="flex-1 overflow-y-auto pr-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-3 gap-5 content-start">
+                    <div class="col-span-full flex justify-center items-center h-32 text-slate-400">
+                        <i class="fa-solid fa-spinner fa-spin text-2xl mr-2"></i> 加载中...
                     </div>
                 </div>
-            </section>
+            </div>
 
-            <section class="panel">
-                <div class="panel-head">
-                    <h2>待办事项</h2>
-                    <span class="badge ok" id="todoBadge">0</span>
+            <!-- ====== 右侧列 (占 3 份宽)：待办事项清单 ====== -->
+            <div class="glass-panel rounded-3xl p-6 flex flex-col h-[750px] md:col-span-12 xl:col-span-3">
+                <div class="flex items-center justify-between border-b border-emerald-100/50 pb-3 mb-5">
+                    <h2 class="text-xl font-bold flex items-center text-emerald-950">
+                        <i class="fa-solid fa-list-check text-emerald-500 mr-2 text-xl drop-shadow-sm"></i>待办事项清单
+                    </h2>
+                    <span id="todoBadge" class="bg-emerald-100/80 border border-emerald-200 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full shadow-sm">0</span>
                 </div>
-                <form id="todoForm" style="display:flex; gap:10px; margin-bottom:14px;">
-                    <input id="todoContent" type="text" placeholder="输入待办..." required>
-                    <button class="btn btn-primary" type="submit">添加</button>
+
+                <form id="todoForm" class="mb-5 flex gap-3">
+                    <input type="text" id="todoContentInput" required placeholder="添加新任务 (回车提交)"
+                        class="flex-1 px-4 py-3 premium-input rounded-2xl text-sm outline-none text-slate-700">
+                    <button type="submit" 
+                        class="px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-semibold rounded-2xl shadow-[0_8px_20px_-6px_rgba(16,185,129,0.5)] hover:shadow-[0_12px_25px_-6px_rgba(16,185,129,0.6)] transform hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center">
+                        <i class="fa-solid fa-plus text-lg"></i>
+                    </button>
                 </form>
-                <div id="todoList" class="todo-list"></div>
-            </section>
+
+                <div id="todoList" class="flex-1 overflow-y-auto pr-3 flex flex-col gap-3">
+                    <div class="flex justify-center items-center h-32 text-slate-400">
+                        <i class="fa-solid fa-spinner fa-spin text-2xl mr-2"></i> 加载中...
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 
-    <dialog id="scheduleDialog">
-        <div class="dialog-body">
-            <h3 style="margin:0 0 14px;">修改日程时间</h3>
-            <input type="hidden" id="editScheduleId">
-            <div class="field">
-                <label for="editScheduleDatetime">日期时间</label>
-                <input id="editScheduleDatetime" type="datetime-local">
-            </div>
-            <div class="dialog-actions">
-                <button class="btn btn-light" type="button" onclick="scheduleDialog.close()">取消</button>
-                <button class="btn btn-primary" id="saveScheduleDateBtn" type="button">保存时间</button>
-            </div>
+    <div id="dateEditorPopover" class="floating-popover popover-wide hidden p-5" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-base font-bold text-indigo-950 flex items-center gap-2">
+                <i class="fa-regular fa-calendar-days text-indigo-500"></i>修改日期时间
+            </h3>
+            <button type="button" onclick="closeDateEditorPopover()" class="text-slate-400 hover:text-rose-500">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
         </div>
-    </dialog>
+        <input type="hidden" id="dateEditorScheduleId">
+        <input type="text" id="dateEditorInput" class="hidden">
+        <div class="flex justify-end gap-3">
+            <button type="button" onclick="closeDateEditorPopover()"
+                class="px-4 py-2.5 rounded-2xl font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
+                取消
+            </button>
+            <button type="button" id="saveDateEditorBtn"
+                class="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold rounded-2xl shadow-[0_8px_20px_-6px_rgba(99,102,241,0.6)] transition-all duration-300">
+                保存时间
+            </button>
+        </div>
+    </div>
 
-    <dialog id="confirmDialog">
-        <div class="dialog-body">
-            <h3 style="margin:0 0 8px;">确认删除</h3>
-            <div class="muted" id="confirmText">删除后不可恢复。</div>
-            <div class="dialog-actions">
-                <button class="btn btn-light" type="button" onclick="confirmDialog.close()">取消</button>
-                <button class="btn btn-soft" id="confirmDeleteBtn" type="button">确认删除</button>
+    <div id="deletePopover" class="floating-popover hidden p-5" onclick="event.stopPropagation()">
+        <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center">
+                <i class="fa-solid fa-trash-can text-rose-500"></i>
+            </div>
+            <div>
+                <div class="text-sm font-bold text-slate-800">确认删除</div>
+                <div class="text-xs text-slate-500">删除后不可恢复</div>
             </div>
         </div>
-    </dialog>
+        <div class="grid grid-cols-2 gap-3 mt-4">
+            <button type="button" onclick="closeDeletePopover()"
+                class="w-full px-4 py-2.5 rounded-2xl font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
+                取消
+            </button>
+            <button type="button" id="deletePopoverConfirmBtn"
+                class="w-full px-5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold rounded-2xl border border-rose-200 transition-all duration-300 inline-flex items-center justify-center gap-2">
+                <i class="fa-solid fa-trash-can text-rose-500"></i>
+                确认删除
+            </button>
+        </div>
+    </div>
+
+    <!-- Flatpickr JS 及 中文语言包 -->
+    <script src="https://cdn.staticfile.net/flatpickr/4.6.13/flatpickr.min.js"></script>
+    <script src="https://cdn.staticfile.net/flatpickr/4.6.13/l10n/zh.min.js"></script>
 
     <script>
-        const weekdayNames = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
-        const scheduleForm = document.getElementById("scheduleForm");
-        const scheduleDatetime = document.getElementById("scheduleDatetime");
-        const scheduleContent = document.getElementById("scheduleContent");
-        const activeSchedules = document.getElementById("activeSchedules");
-        const doneSchedules = document.getElementById("doneSchedules");
-        const scheduleBadge = document.getElementById("scheduleBadge");
-        const doneBadge = document.getElementById("doneBadge");
-        const todoForm = document.getElementById("todoForm");
-        const todoContent = document.getElementById("todoContent");
-        const todoList = document.getElementById("todoList");
-        const todoBadge = document.getElementById("todoBadge");
-        const scheduleDialog = document.getElementById("scheduleDialog");
-        const editScheduleId = document.getElementById("editScheduleId");
-        const editScheduleDatetime = document.getElementById("editScheduleDatetime");
-        const saveScheduleDateBtn = document.getElementById("saveScheduleDateBtn");
-        const confirmDialog = document.getElementById("confirmDialog");
-        const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
-        let confirmAction = null;
-
-        scheduleDatetime.value = new Date().toISOString().slice(0, 16);
-
-        function escapeHtml(text) {
-            return String(text)
-                .replaceAll("&", "&amp;")
-                .replaceAll("<", "&lt;")
-                .replaceAll(">", "&gt;")
-                .replaceAll("\"", "&quot;")
-                .replaceAll("'", "&#039;");
+        // HTML 防注入
+        function escapeHtml(unsafe) {
+            return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
 
-        async function api(path, options = {}) {
-            const response = await fetch(path, {
-                headers: { "Content-Type": "application/json" },
-                ...options,
-            });
-            if (!response.ok) {
-                const data = await response.json().catch(() => ({}));
-                throw new Error(data.message || "请求失败");
+        // ================= 日历组件 (直接展开 Inline 模式) =================
+        const fpInstance = flatpickr("#datetimeInput", {
+            inline: true,                 // 直接展开，充分利用空间
+            enableTime: true,             // 启用时间选择
+            time_24hr: true,              // 24小时制
+            locale: "zh",
+            allowInput: true,
+            dateFormat: "Y-m-d\\TH:i",
+            minuteIncrement: 1,
+            defaultMinute: 0,
+            defaultDate: new Date(),
+        });
+        const dateEditorPopover = document.getElementById('dateEditorPopover');
+        const deletePopover = document.getElementById('deletePopover');
+        const deletePopoverConfirmBtn = document.getElementById('deletePopoverConfirmBtn');
+        const saveDateEditorBtn = document.getElementById('saveDateEditorBtn');
+        const dateEditorScheduleId = document.getElementById('dateEditorScheduleId');
+        let deleteAction = null;
+
+        const dateEditorFpInstance = flatpickr("#dateEditorInput", {
+            inline: true,
+            enableTime: true,
+            time_24hr: true,
+            locale: "zh",
+            allowInput: true,
+            dateFormat: "Y-m-d\\TH:i",
+            minuteIncrement: 1,
+            defaultMinute: 0,
+        });
+
+        function positionPopover(popover, triggerElement) {
+            const rect = triggerElement.getBoundingClientRect();
+            const popoverWidth = popover.offsetWidth || 420;
+            const popoverHeight = popover.offsetHeight || 280;
+            const left = Math.max(12, (window.innerWidth - popoverWidth) / 2);
+            let top = rect.bottom + 12;
+            if (top + popoverHeight > window.innerHeight - 24) {
+                top = Math.max(24, (window.innerHeight - popoverHeight) / 2);
             }
-            return response.json();
+            popover.style.left = `${left}px`;
+            popover.style.top = `${top}px`;
         }
 
-        function formatDateTime(value) {
-            const date = new Date(value);
-            const y = date.getFullYear();
-            const m = String(date.getMonth() + 1).padStart(2, "0");
-            const d = String(date.getDate()).padStart(2, "0");
-            const hh = String(date.getHours()).padStart(2, "0");
-            const mm = String(date.getMinutes()).padStart(2, "0");
-            return {
-                date: `${y}-${m}-${d}`,
-                time: `${hh}:${mm}`,
-                weekday: weekdayNames[date.getDay()],
-                past: date.getTime() < Date.now(),
-            };
+        function closeAllPopovers() {
+            closeDateEditorPopover();
+            closeDeletePopover();
         }
 
-        function emptyState(text) {
-            return `<div class="empty">${text}</div>`;
-        }
+        window.closeDateEditorPopover = function() {
+            dateEditorPopover.classList.add('hidden');
+        };
+
+        window.closeDeletePopover = function() {
+            deletePopover.classList.add('hidden');
+            deleteAction = null;
+        };
+
+        document.addEventListener('click', () => {
+            closeAllPopovers();
+        });
+
+        saveDateEditorBtn.addEventListener('click', async () => {
+            const scheduleId = dateEditorScheduleId.value;
+            const contentEditor = document.getElementById(`scheduleContentEditor-${scheduleId}`);
+            if (!scheduleId || !contentEditor) return;
+
+            try {
+                const res = await fetch(`/api/schedules/${scheduleId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        datetime: document.getElementById('dateEditorInput').value,
+                        content: contentEditor.value
+                    })
+                });
+                if (!res.ok) {
+                    throw new Error('更新日程时间失败');
+                }
+                closeDateEditorPopover();
+                loadSchedules();
+            } catch (err) {
+                console.error(err);
+                alert('修改日期时间失败，请重试');
+            }
+        });
+
+        deletePopoverConfirmBtn.addEventListener('click', async () => {
+            if (!deleteAction) return;
+            await deleteAction();
+            closeDeletePopover();
+        });
+
+        // ================= 日程管理逻辑 (网格卡片版) =================
+        const scheduleList = document.getElementById('scheduleList');
+        const scheduleForm = document.getElementById('scheduleForm');
+        const scheduleBadge = document.getElementById('scheduleBadge');
 
         async function loadSchedules() {
-            const items = await api("/api/schedules");
-            const active = items.filter((item) => !item.isDone);
-            const done = items.filter((item) => item.isDone);
-            scheduleBadge.textContent = active.length;
-            doneBadge.textContent = done.length;
+            try {
+                const res = await fetch('/api/schedules');
+                let data = await res.json();
+                
+                data.sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime());
+                const pendingSchedules = data.filter(item => !item.is_done);
+                const completedSchedules = data.filter(item => item.is_done);
+                scheduleBadge.textContent = pendingSchedules.length;
+                
+                if (data.length === 0) {
+                    scheduleList.innerHTML = '<div class="col-span-full flex flex-col items-center justify-center h-48 text-slate-400"><i class="fa-regular fa-calendar-xmark text-5xl mb-4 opacity-40"></i><p class="font-medium tracking-wide">暂无日程，享受空闲时光吧！</p></div>';
+                    return;
+                }
 
-            activeSchedules.innerHTML = active.length ? "" : emptyState("暂无未完成日程");
-            doneSchedules.innerHTML = done.length ? "" : emptyState("暂无已完成日程");
+                scheduleList.innerHTML = '';
+                const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+                const weekdayColorClasses = [
+                    'bg-red-100/80 text-red-600',
+                    'bg-orange-100/80 text-orange-600',
+                    'bg-amber-100/80 text-amber-700',
+                    'bg-emerald-100/80 text-emerald-700',
+                    'bg-cyan-100/80 text-cyan-700',
+                    'bg-blue-100/80 text-blue-700',
+                    'bg-purple-100/80 text-purple-700'
+                ];
 
-            active.forEach((item) => {
-                const info = formatDateTime(item.datetime);
-                const card = document.createElement("div");
-                card.className = `schedule-card ${info.past ? "past" : ""}`;
-                card.innerHTML = `
-                    <div class="schedule-row">
-                        <input type="checkbox" onchange="toggleSchedule(${item.id}, this.checked)">
-                        <div class="schedule-main">
-                            <div class="schedule-top">
-                                <span><strong>${info.date}</strong></span>
-                                <span class="weekday">${info.weekday}</span>
-                                <span class="time">${info.time}</span>
+                const wrapper = document.createElement('div');
+                wrapper.className = 'col-span-full flex flex-col gap-5';
+
+                const activeSection = document.createElement('div');
+                activeSection.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-3 gap-5';
+
+                if (pendingSchedules.length === 0) {
+                    activeSection.innerHTML = '<div class="col-span-full flex flex-col items-center justify-center h-28 text-slate-400 rounded-2xl border border-dashed border-slate-200 bg-white/40"><i class="fa-regular fa-circle-check text-2xl mb-2"></i><p class="text-sm font-medium">未完成日程已经清空</p></div>';
+                }
+
+                pendingSchedules.forEach(item => {
+                    const dt = new Date(item.datetime);
+                    const isPast = dt < new Date();
+                    
+                    const year = dt.getFullYear();
+                    const month = (dt.getMonth()+1).toString().padStart(2,'0');
+                    const date = dt.getDate().toString().padStart(2,'0');
+                    const hours = dt.getHours().toString().padStart(2,'0');
+                    const mins = dt.getMinutes().toString().padStart(2,'0');
+                    const weekdayIndex = dt.getDay();
+                    const weekday = weekdayNames[weekdayIndex];
+                    const weekdayClass = isPast ? 'bg-slate-100 text-slate-500' : weekdayColorClasses[weekdayIndex];
+                    
+                    const dateStr = `${year}年${month}月${date}日`;
+                    const timeStr = `${hours}:${mins}`;
+
+                    const el = document.createElement('div');
+                    el.className = `list-item border rounded-2xl p-5 flex flex-col gap-3 h-fit backdrop-blur-sm relative overflow-hidden group ${
+                        isPast
+                            ? 'bg-slate-50/70 border-slate-200 opacity-75'
+                            : 'bg-white/95 border-indigo-100 shadow-sm'
+                    }`;
+                    el.innerHTML = `
+                        <div class="flex justify-between items-start border-b ${isPast ? 'border-slate-200' : 'border-indigo-50'} pb-3 gap-2 pr-16">
+                            <div class="flex items-start gap-3 ${isPast ? 'text-slate-500' : 'text-indigo-600'}">
+                                <input type="checkbox" onchange="toggleSchedule(${item.id}, this.checked)" class="todo-checkbox flex-shrink-0 mt-0.5" title="标记为完成">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="text-sm font-bold tracking-wide">${dateStr}</span>
+                                    <span class="px-3.5 py-1.5 rounded-xl text-base font-black shadow-sm tracking-wide ${weekdayClass}">${weekday}</span>
+                                    <span class="text-sm font-bold tracking-wide">${timeStr}</span>
+                                </div>
                             </div>
-                            <textarea class="content-editor" data-id="${item.id}" data-datetime="${item.datetime}" data-original="${encodeURIComponent(item.content)}">${escapeHtml(item.content)}</textarea>
+                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 absolute top-3 right-3 bg-white/90 backdrop-blur-md rounded-lg p-1 shadow-sm border border-slate-100">
+                                <button onclick="openDateEditorPopover(event, ${item.id}, '${item.datetime}')" class="text-slate-400 hover:text-indigo-500 transition-colors p-1.5" title="修改时间">
+                                    <i class="fa-solid fa-pen-to-square text-sm"></i>
+                                </button>
+                                <button onclick="confirmDeleteSchedule(event, ${item.id})" class="text-slate-400 hover:text-rose-500 transition-colors p-1.5" title="删除">
+                                    <i class="fa-solid fa-trash-can text-sm"></i>
+                                </button>
+                            </div>
                         </div>
-                        <div class="actions">
-                            <button class="icon-btn" onclick="openScheduleDialog(${item.id}, '${item.datetime}')">时</button>
-                            <button class="icon-btn" onclick="askDeleteSchedule(${item.id})">删</button>
+                        <div>
+                            <textarea id="scheduleContentEditor-${item.id}" data-datetime="${item.datetime}" data-original="${encodeURIComponent(item.content)}" onblur="saveScheduleContent(${item.id}, this)" onkeydown="handleScheduleEditorKeydown(event, this)" class="inline-note-editor ${isPast ? 'text-slate-500' : ''} mt-1">${escapeHtml(item.content)}</textarea>
                         </div>
-                    </div>
-                `;
-
-                const editor = card.querySelector("textarea");
-                editor.addEventListener("blur", async (event) => {
-                    const target = event.target;
-                    const original = decodeURIComponent(target.dataset.original || "");
-                    if (target.value === original) return;
-                    await updateSchedule(item.id, {
-                        datetime: target.dataset.datetime,
-                        content: target.value,
-                    });
+                    `;
+                    activeSection.appendChild(el);
                 });
 
-                activeSchedules.appendChild(card);
-            });
+                wrapper.appendChild(activeSection);
 
-            done.forEach((item) => {
-                const info = formatDateTime(item.datetime);
-                const row = document.createElement("div");
-                row.className = "done-item";
-                row.innerHTML = `
-                    <input type="checkbox" checked onchange="toggleSchedule(${item.id}, this.checked)">
-                    <span><strong>${info.time}</strong></span>
-                    <span class="done-text">${escapeHtml(item.content)}</span>
-                    <button class="icon-btn" onclick="askDeleteSchedule(${item.id})">删</button>
-                `;
-                doneSchedules.appendChild(row);
-            });
+                if (completedSchedules.length > 0) {
+                    const completedSection = document.createElement('div');
+                    completedSection.className = 'rounded-2xl border border-emerald-100/80 bg-white/65 p-4';
+
+                    const completedHeader = document.createElement('div');
+                    completedHeader.className = 'flex items-center justify-between mb-3 pb-3 border-b border-emerald-100';
+                    completedHeader.innerHTML = `
+                        <div class="flex items-center gap-2 text-emerald-900 font-bold">
+                            <i class="fa-solid fa-circle-check text-emerald-500"></i>已完成安排
+                        </div>
+                        <span class="bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full">${completedSchedules.length}</span>
+                    `;
+                    completedSection.appendChild(completedHeader);
+
+                    const completedList = document.createElement('div');
+                    completedList.className = 'flex flex-col gap-3';
+
+                    completedSchedules.forEach(item => {
+                        const dt = new Date(item.datetime);
+                        const year = dt.getFullYear();
+                        const month = (dt.getMonth()+1).toString().padStart(2,'0');
+                        const date = dt.getDate().toString().padStart(2,'0');
+                        const hours = dt.getHours().toString().padStart(2,'0');
+                        const mins = dt.getMinutes().toString().padStart(2,'0');
+                        const row = document.createElement('div');
+                        row.className = 'compact-schedule-row rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-emerald-800';
+                        row.innerHTML = `
+                            <input type="checkbox" checked onchange="toggleSchedule(${item.id}, this.checked)" class="todo-checkbox flex-shrink-0" title="取消完成">
+                            <span class="text-xs sm:text-sm font-bold whitespace-nowrap">${month}-${date} ${hours}:${mins}</span>
+                            <span class="compact-schedule-content text-sm line-through decoration-emerald-500">${escapeHtml(item.content)}</span>
+                            <button onclick="confirmDeleteSchedule(event, ${item.id})" class="text-emerald-400 hover:text-rose-500 transition-colors p-1.5 rounded-lg" title="删除">
+                                <i class="fa-solid fa-trash-can text-sm"></i>
+                            </button>
+                        `;
+                        completedList.appendChild(row);
+                    });
+
+                    completedSection.appendChild(completedList);
+                    wrapper.appendChild(completedSection);
+                }
+
+                scheduleList.appendChild(wrapper);
+            } catch (err) {
+                console.error(err);
+                scheduleList.innerHTML = '<div class="col-span-full text-red-500 text-center mt-4">加载失败，请确保后台服务正在运行</div>';
+            }
         }
+
+        scheduleForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            // 获取日历组件当前选中的时间
+            const dt = document.getElementById('datetimeInput').value;
+            const contentInput = document.getElementById('scheduleContentInput');
+            const content = contentInput.value;
+            
+            try {
+                const res = await fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ datetime: dt, content: content })
+                });
+                if (res.ok) {
+                    contentInput.value = '';
+                    contentInput.focus();
+                    // 提交后重置日历到当前时间
+                    fpInstance.setDate(new Date());
+                    loadSchedules();
+                }
+            } catch (err) { console.error(err); }
+        });
+
+        window.confirmDeleteSchedule = function(event, id) {
+            event.stopPropagation();
+            closeAllPopovers();
+            deletePopover.classList.remove('hidden');
+            positionPopover(deletePopover, event.currentTarget);
+            deleteAction = async () => {
+                try {
+                    await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+                    loadSchedules();
+                } catch (err) { console.error(err); }
+            };
+        };
+
+        window.toggleSchedule = async function(id, is_done) {
+            try {
+                let res = await fetch(`/api/schedules/${id}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_done: is_done })
+                });
+                if (!res.ok) {
+                    res = await fetch(`/api/schedules/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ is_done: is_done })
+                    });
+                }
+                if (!res.ok) {
+                    throw new Error('更新日程状态失败');
+                }
+                loadSchedules();
+            } catch (err) {
+                console.error(err);
+                alert('勾选状态保存失败，请刷新后重试');
+            }
+        };
+
+        window.openDateEditorPopover = function(event, id, datetimeValue) {
+            event.stopPropagation();
+            closeAllPopovers();
+            dateEditorScheduleId.value = id;
+            dateEditorFpInstance.setDate(datetimeValue, true, "Y-m-d\\TH:i");
+            dateEditorPopover.classList.remove('hidden');
+            positionPopover(dateEditorPopover, event.currentTarget);
+        };
+
+        window.handleScheduleEditorKeydown = function(event, textarea) {
+            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                event.preventDefault();
+                textarea.blur();
+            }
+        };
+
+        window.saveScheduleContent = async function(id, textarea) {
+            const originalValue = decodeURIComponent(textarea.dataset.original || '');
+            const currentValue = textarea.value;
+            const datetimeValue = textarea.dataset.datetime;
+
+            if (currentValue === originalValue) return;
+
+            try {
+                const res = await fetch(`/api/schedules/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ datetime: datetimeValue, content: currentValue })
+                });
+                if (res.ok) {
+                    textarea.dataset.original = encodeURIComponent(currentValue);
+                    loadSchedules();
+                } else {
+                    throw new Error('更新日程内容失败');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('修改日程内容失败，请重试');
+            }
+        };
+
+        // ================= 待办管理逻辑 (紧凑列表版) =================
+        const todoList = document.getElementById('todoList');
+        const todoForm = document.getElementById('todoForm');
+        const todoBadge = document.getElementById('todoBadge');
 
         async function loadTodos() {
-            const items = await api("/api/todos");
-            const pending = items.filter((item) => !item.isDone);
-            todoBadge.textContent = pending.length;
-            todoList.innerHTML = items.length ? "" : emptyState("暂无待办");
+            try {
+                const res = await fetch('/api/todos');
+                const data = await res.json();
+                
+                const pendingCount = data.filter(t => !t.is_done).length;
+                todoBadge.textContent = pendingCount;
+                
+                if (data.length === 0) {
+                    todoList.innerHTML = '<div class="flex flex-col items-center justify-center h-48 text-slate-400"><i class="fa-solid fa-clipboard-check text-5xl mb-4 opacity-40"></i><p class="font-medium tracking-wide">所有任务都已完成！</p></div>';
+                    return;
+                }
 
-            items.forEach((item) => {
-                const row = document.createElement("div");
-                row.className = "todo-item";
-                row.innerHTML = `
-                    <input type="checkbox" ${item.isDone ? "checked" : ""} onchange="toggleTodo(${item.id}, this.checked)">
-                    <div style="flex:1; ${item.isDone ? "text-decoration:line-through;color:#94a3b8;" : ""}">${escapeHtml(item.content)}</div>
-                    <button class="icon-btn" onclick="askDeleteTodo(${item.id})">删</button>
-                `;
-                todoList.appendChild(row);
-            });
+                todoList.innerHTML = '';
+                data.forEach(item => {
+                    const el = document.createElement('div');
+                    el.className = `list-item bg-white/90 border ${item.is_done ? 'border-slate-100 opacity-60 bg-slate-50/50' : 'border-emerald-100 shadow-sm'} rounded-2xl p-4 flex items-center gap-4 group`;
+                    el.innerHTML = `
+                        <input type="checkbox" ${item.is_done ? 'checked' : ''} onchange="toggleTodo(${item.id}, this.checked)" class="todo-checkbox flex-shrink-0">
+                        <div class="flex-grow">
+                            <p class="text-sm ${item.is_done ? 'text-slate-400 line-through' : 'text-slate-700 font-semibold'} break-all">${escapeHtml(item.content)}</p>
+                        </div>
+                        <button onclick="confirmDeleteTodo(event, ${item.id})" class="text-slate-300 opacity-0 group-hover:opacity-100 hover:text-rose-500 p-2 rounded-lg transition-all duration-300 hover:bg-rose-50" title="删除">
+                            <i class="fa-solid fa-trash-can text-sm"></i>
+                        </button>
+                    `;
+                    todoList.appendChild(el);
+                });
+            } catch (err) {
+                console.error(err);
+                todoList.innerHTML = '<div class="text-red-500 text-center mt-4">加载失败</div>';
+            }
         }
 
-        async function refreshAll() {
-            await Promise.all([loadSchedules(), loadTodos()]);
-        }
-
-        async function updateSchedule(id, payload) {
-            await api(`/api/schedules/${id}`, {
-                method: "PUT",
-                body: JSON.stringify(payload),
-            });
-            await loadSchedules();
-        }
-
-        scheduleForm.addEventListener("submit", async (event) => {
-            event.preventDefault();
-            await api("/api/schedules", {
-                method: "POST",
-                body: JSON.stringify({
-                    datetime: scheduleDatetime.value,
-                    content: scheduleContent.value,
-                }),
-            });
-            scheduleContent.value = "";
-            scheduleDatetime.value = new Date().toISOString().slice(0, 16);
-            await loadSchedules();
+        todoForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const contentInput = document.getElementById('todoContentInput');
+            const content = contentInput.value;
+            
+            try {
+                const res = await fetch('/api/todos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: content })
+                });
+                if (res.ok) {
+                    contentInput.value = '';
+                    contentInput.focus();
+                    loadTodos();
+                }
+            } catch (err) { console.error(err); }
         });
 
-        todoForm.addEventListener("submit", async (event) => {
-            event.preventDefault();
-            await api("/api/todos", {
-                method: "POST",
-                body: JSON.stringify({ content: todoContent.value }),
-            });
-            todoContent.value = "";
-            await loadTodos();
-        });
-
-        window.toggleSchedule = async (id, checked) => {
-            await api(`/api/schedules/${id}`, {
-                method: "PUT",
-                body: JSON.stringify({ isDone: checked }),
-            });
-            await loadSchedules();
+        window.toggleTodo = async function(id, is_done) {
+            try {
+                await fetch(`/api/todos/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_done: is_done })
+                });
+                loadTodos();
+            } catch (err) { console.error(err); }
         };
 
-        window.toggleTodo = async (id, checked) => {
-            await api(`/api/todos/${id}`, {
-                method: "PUT",
-                body: JSON.stringify({ isDone: checked }),
-            });
-            await loadTodos();
+        window.confirmDeleteTodo = function(event, id) {
+            event.stopPropagation();
+            closeAllPopovers();
+            deletePopover.classList.remove('hidden');
+            positionPopover(deletePopover, event.currentTarget);
+            deleteAction = async () => {
+                try {
+                    await fetch(`/api/todos/${id}`, { method: 'DELETE' });
+                    loadTodos();
+                } catch (err) { console.error(err); }
+            };
         };
 
-        window.openScheduleDialog = (id, datetime) => {
-            editScheduleId.value = id;
-            editScheduleDatetime.value = datetime;
-            scheduleDialog.showModal();
-        };
-
-        saveScheduleDateBtn.addEventListener("click", async () => {
-            const id = Number(editScheduleId.value);
-            const editor = document.querySelector(`textarea[data-id="${id}"]`);
-            await updateSchedule(id, {
-                datetime: editScheduleDatetime.value,
-                content: editor ? editor.value : "",
-            });
-            scheduleDialog.close();
-        });
-
-        function askDelete(message, callback) {
-            document.getElementById("confirmText").textContent = message;
-            confirmAction = callback;
-            confirmDialog.showModal();
-        }
-
-        confirmDeleteBtn.addEventListener("click", async () => {
-            if (confirmAction) await confirmAction();
-            confirmDialog.close();
-            confirmAction = null;
-        });
-
-        window.askDeleteSchedule = (id) => {
-            askDelete("删除这个日程后不可恢复。", async () => {
-                await api(`/api/schedules/${id}`, { method: "DELETE" });
-                await loadSchedules();
-            });
-        };
-
-        window.askDeleteTodo = (id) => {
-            askDelete("删除这个待办后不可恢复。", async () => {
-                await api(`/api/todos/${id}`, { method: "DELETE" });
-                await loadTodos();
-            });
-        };
-
-        refreshAll().catch((error) => {
-            console.error(error);
-            alert(error.message || "加载失败");
-        });
+        // 初始化加载
+        loadSchedules();
+        loadTodos();
     </script>
 </body>
 </html>

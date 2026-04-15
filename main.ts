@@ -201,6 +201,27 @@ async function handleSchedules(request: Request): Promise<Response> {
   return new Response("Method Not Allowed", { status: 405 });
 }
 
+async function handleScheduleStatus(request: Request, id: number): Promise<Response> {
+  if (request.method !== "PUT") {
+    return new Response("Method Not Allowed", { status: 405 });
+  }
+
+  const existing = await getSchedule(id);
+  if (!existing) {
+    return json({ status: "error", message: "日程不存在" }, 404);
+  }
+
+  const body = await readJson<{ is_done?: boolean; isDone?: boolean }>(request);
+  if (!body) return badRequest("请求数据无效");
+
+  const isDone = typeof body.is_done === "boolean" ? body.is_done : 
+                 (typeof body.isDone === "boolean" ? body.isDone : existing.isDone);
+
+  const updated: Schedule = { ...existing, isDone };
+  await setSchedule(updated);
+  return json({ status: "success", item: updated });
+}
+
 async function handleScheduleDetail(request: Request, id: number): Promise<Response> {
   const existing = await getSchedule(id);
   if (!existing) {
@@ -320,6 +341,12 @@ Deno.serve(async (request) => {
 
   if (url.pathname === "/api/schedules") {
     return await handleSchedules(request);
+  }
+
+  if (url.pathname.match(/^\/api\/schedules\/\d+\/status$/)) {
+    const id = Number(url.pathname.split("/")[3]);
+    if (!Number.isFinite(id)) return notFound();
+    return await handleScheduleStatus(request, id);
   }
 
   if (url.pathname.startsWith("/api/schedules/")) {
