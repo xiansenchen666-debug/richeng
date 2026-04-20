@@ -336,6 +336,11 @@
             return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
 
+        // 修改中文语言包，将一周的第一天设为周一
+        if (flatpickr && flatpickr.l10ns && flatpickr.l10ns.zh) {
+            flatpickr.l10ns.zh.firstDayOfWeek = 1;
+        }
+
         // ================= 日历组件 (直接展开 Inline 模式) =================
         const fpInstance = flatpickr("#datetimeInput", {
             inline: true,                 // 直接展开，充分利用空间
