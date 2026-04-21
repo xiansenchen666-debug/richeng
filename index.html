@@ -190,7 +190,12 @@
                 
                 <form id="scheduleForm" class="flex flex-col gap-5 h-full">
                     <!-- 直接展开的日历组件 -->
-                    <div class="flex flex-col justify-center w-full bg-white/40 rounded-2xl p-2 border border-white/60 shadow-sm gap-2">
+                    <div class="flex flex-col w-full bg-white/40 rounded-2xl p-2 border border-white/60 shadow-sm gap-1">
+                        <div class="flex justify-end px-2 pt-1">
+                            <button type="button" id="setTodayBtn" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full font-medium transition-colors border border-indigo-100 shadow-sm flex items-center gap-1">
+                                <i class="fa-solid fa-calendar-day"></i>今天
+                            </button>
+                        </div>
                         <input type="text" id="datetimeInput" required
                             class="w-full px-3 py-2 border border-transparent rounded-lg text-sm text-indigo-800 bg-transparent text-center font-medium outline-none">
                     </div>
@@ -353,6 +358,11 @@
             defaultMinute: 0,
             defaultDate: new Date(),
         });
+
+        document.getElementById('setTodayBtn').addEventListener('click', () => {
+            fpInstance.setDate(new Date());
+        });
+
         const dateEditorPopover = document.getElementById('dateEditorPopover');
         const deletePopover = document.getElementById('deletePopover');
         const deletePopoverConfirmBtn = document.getElementById('deletePopoverConfirmBtn');
